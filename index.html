@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Icefox AI</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        /* Pure OLED Black Background */
+        body {
+            background-color: #000000;
+            color: #E0E0E0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Header Area */
+        header {
+            padding: 20px;
+            text-align: center;
+            border-bottom: 1px solid #1A1A1A;
+        }
+
+        header h1 {
+            font-size: 1.2rem;
+            font-weight: 500;
+            letter-spacing: 1px;
+            color: #FFFFFF;
+        }
+
+        header p {
+            font-size: 0.8rem;
+            color: #666666;
+            margin-top: 4px;
+        }
+
+        /* Chat Area Box */
+        #chat-container {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* Hide Scrollbar for clean look */
+        #chat-container::-webkit-scrollbar {
+            width: 4px;
+        }
+        #chat-container::-webkit-scrollbar-thumb {
+            background-color: #222222;
+            border-radius: 4px;
+        }
+
+        /* Message Bubbles */
+        .message {
+            max-width: 80%;
+            padding: 12px 16px;
+            border-radius: 16px;
+            font-size: 0.95rem;
+            line-height: 1.4;
+            word-wrap: break-word;
+        }
+
+        .user-message {
+            background-color: #1A1A1A;
+            color: #FFFFFF;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+            border: 1px solid #2A2A2A;
+        }
+
+        .ai-message {
+            background-color: #000000;
+            color: #E0E0E0;
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+            border: 1px solid #1A1A1A;
+        }
+
+        .system-status {
+            font-size: 0.8rem;
+            color: #666666;
+            align-self: center;
+            font-style: italic;
+        }
+
+        /* Input Container Area */
+        .input-area {
+            padding: 20px;
+            border-top: 1px solid #1A1A1A;
+            background-color: #000000;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        #message-input {
+            flex: 1;
+            background-color: #121212;
+            border: 1px solid #222222;
+            color: #FFFFFF;
+            padding: 14px 18px;
+            border-radius: 24px;
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        #message-input:focus {
+            border-color: #444444;
+        }
+
+        #send-btn {
+            background-color: #FFFFFF;
+            color: #000000;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 24px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: opacity 0.2s;
+        }
+
+        #send-btn:hover {
+            opacity: 0.9;
+        }
+
+        #send-btn:disabled {
+            background-color: #222222;
+            color: #666666;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>ICEFOX//AI</h1>
+        <p>Llama 3.1 Neural Engine via Cloudflare Edge</p>
+    </header>
+
+    <div id="chat-container">
+        <div class="message ai-message">Hello! I am up and running on your network. Ask me anything.</div>
+    </div>
+
+    <div class="input-area">
+        <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off">
+        <button id="send-btn">Send</button>
+    </div>
+
+    <script>
+        const chatContainer = document.getElementById('chat-container');
+        const messageInput = document.getElementById('message-input');
+        const sendBtn = document.getElementById('send-btn');
+
+        // Target your exact Cloudflare Worker URL
+        const API_URL = "https://ai.icefox0312.dpdns.org";
+
+        function appendMessage(text, isUser) {
+            const msgDiv = document.createElement('div');
+            msgDiv.classList.add('message', isUser ? 'user-message' : 'ai-message');
+            msgDiv.textContent = text;
+            chatContainer.appendChild(msgDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        async function handleSend() {
+            const promptText = messageInput.value.trim();
+            if (!promptText) return;
+
+            // Display user message
+            appendMessage(promptText, true);
+            messageInput.value = '';
+            
+            // Disable inputs while waiting
+            messageInput.disabled = true;
+            sendBtn.disabled = true;
+
+            // Create temporary loading element
+            const loadingDiv = document.createElement('div');
+            loadingDiv.classList.add('message', 'system-status');
+            loadingDiv.textContent = "Thinking...";
+            chatContainer.appendChild(loadingDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ prompt: promptText })
+                });
+
+                const data = await response.json();
+                
+                // Remove loading text
+                loadingDiv.remove();
+
+                if (data.response) {
+                    appendMessage(data.response, false);
+                } else {
+                    appendMessage("Error: Cloudflare engine did not return text properly.", false);
+                }
+
+            } catch (error) {
+                loadingDiv.remove();
+                appendMessage("Failed to fetch response. Check backend connection.", false);
+                console.error(error);
+            } finally {
+                // Re-enable inputs
+                messageInput.disabled = false;
+                sendBtn.disabled = false;
+                messageInput.focus();
+            }
+        }
+
+        // Event Listeners
+        sendBtn.addEventListener('click', handleSend);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleSend();
+        });
+    </script>
+</body>
+</html>
